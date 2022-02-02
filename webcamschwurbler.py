@@ -6,13 +6,20 @@ from tkinter import *
 
 
 filter = 0 # Global filter index
-running = True # Global flag
+running = True # Global running flag
+pausing = False # Global pause flag
 idx = 0  # loop index
 
 def stop():
     """Stop scanning by setting the global flag to False."""
     global running
     running = False
+
+
+def pause():
+    """Stop scanning by setting the global flag to False."""
+    global pausing
+    pausing = not pausing
 
 
 def CannyFull(frame):
@@ -41,6 +48,13 @@ def CannyBackground(frame, cascadeHandle, height, width):
     return canny
 
 
+def Rotate(image, index):
+  image_center = tuple(np.array(image.shape[1::-1]) / 2)
+  rot_mat = cv2.getRotationMatrix2D(image_center, index%360, 1.0)
+  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+  return result
+
+
 def getElement(event):
   selection = event.widget.curselection()
   index = selection[0]
@@ -59,10 +73,13 @@ app = Frame(root)
 app.grid()
 
 stop = Button(app, text="Stop", command=stop)
-
 stop.grid()
+
+pause = Button(app, text="pause", command=pause, activebackground='orange')
+pause.grid()
+
 var2 = StringVar()
-var2.set(('Kein Filter','Canny','Canny BG'))
+var2.set(('Kein Filter','Canny','Canny BG', 'Rotate'))
 lb = Listbox(root, listvariable=var2)
 lb.grid()
 lb.bind('<<ListboxSelect>>', getElement) #Select click
@@ -91,13 +108,14 @@ fps = vc.get(cv2.CAP_PROP_FPS)
 with pyvirtualcam.Camera(width, height, fps, fmt=PixelFormat.BGR) as cam:
     print('Virtual camera device: ' + cam.device)
     while True:
-        
         #update gui every 10 frames
         if idx % 10 == 0:
             root.update()
         if not running:
             break
-
+        if pausing:
+            continue
+        
         ret, frame = vc.read()
 
         if filter == 0:
@@ -106,6 +124,8 @@ with pyvirtualcam.Camera(width, height, fps, fmt=PixelFormat.BGR) as cam:
             frame = CannyFull(frame)
         elif filter == 2:
             frame = CannyBackground(frame, face_cascade, height, width)
+        elif filter == 3:
+            frame = Rotate(frame, idx)
         
         cam.send(frame)
         idx += 1

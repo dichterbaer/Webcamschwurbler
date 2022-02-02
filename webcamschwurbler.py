@@ -32,8 +32,8 @@ def CannyBackground(frame, cascadeHandle, height, width):
     for (x, y, w, h) in faces:
         hdiff = height - y
         wdiff = width - x
-        xOff = min(x-50, 0)
-        yOff = min(0,y-100)
+        xOff = max(x-50, 0)
+        yOff = max(0,y-100)
         
         ROI = frame[yOff:y+hdiff, xOff:x+w+50]
         rois.append(ROI)
@@ -52,7 +52,7 @@ def getElement(event):
 
 
 root = Tk()
-root.title("Title")
+root.title("Webcamschwurbler")
 root.geometry("500x500")
 
 app = Frame(root)
@@ -80,7 +80,7 @@ vc.set(cv2.CAP_PROP_FRAME_WIDTH, pref_width)
 vc.set(cv2.CAP_PROP_FRAME_HEIGHT, pref_height)
 vc.set(cv2.CAP_PROP_FPS, pref_fps)
 
-face_cascade = cv2.CascadeClassifier('/haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 
 # Query final capture device values

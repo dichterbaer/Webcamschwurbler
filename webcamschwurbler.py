@@ -2,6 +2,7 @@ import cv2
 import pyvirtualcam
 from pyvirtualcam import PixelFormat
 import numpy as np
+import imageProcessing as ip
 from tkinter import *
 
 
@@ -10,8 +11,35 @@ running = True # Global running flag
 pausing = False # Global pause flag
 idx = 0  # loop index
 
+def list_ports():
+    """
+    Test the ports and returns a tuple with the available ports and the ones that are working.
+    """
+    non_working_ports = []
+    dev_port = 0
+    working_ports = []
+    available_ports = []
+    while len(non_working_ports) < 6: # if there are more than 5 non working ports stop the testing. 
+        camera = cv2.VideoCapture(dev_port)
+        if not camera.isOpened():
+            non_working_ports.append(dev_port)
+            print("Port %s is not working." %dev_port)
+        else:
+            is_reading, img = camera.read()
+            w = camera.get(3)
+            h = camera.get(4)
+            if is_reading:
+                print("Port %s is working and reads images (%s x %s)" %(dev_port,h,w))
+                working_ports.append(dev_port)
+            else:
+                print("Port %s for camera ( %s x %s) is present but does not reads." %(dev_port,h,w))
+                available_ports.append(dev_port)
+        dev_port +=1
+    return available_ports,working_ports,non_working_ports
+
 def stop():
     """Stop scanning by setting the global flag to False."""
+    vc.release()
     global running
     running = False
 
@@ -20,80 +48,10 @@ def pause():
     """Stop scanning by setting the global flag to False."""
     global pausing
     pausing = not pausing
-
-
-def CannyFull(frame):
-    canny = cv2.Canny(frame, 100, 200)
-    canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2RGB)
-    return canny
-
-
-def CannyBackground(frame, cascadeHandle, height, width):
-    gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-    # detect people in the image
-    # returns the bounding boxes for the detected objects
-    faces = cascadeHandle.detectMultiScale(gray, 1.1, 4)
-    canny = cv2.Canny(frame, 100, 200)
-    canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2RGB)
-    rois = []
-    for (x, y, w, h) in faces:
-        hdiff = height - y
-        wdiff = width - x
-        xOff = max(x-50, 0)
-        yOff = max(0,y-100)
-        
-        ROI = frame[yOff:y+hdiff, xOff:x+w+50]
-        rois.append(ROI)
-        canny[yOff:y+hdiff, xOff:x+w+50]= ROI
-    return canny
-
-
-def FourierJet(frame):
-    frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-    f = np.fft.fft2(frame)
-    fshift = np.fft.fftshift(f)
-    rows, cols = frame.shape
-    crow,ccol = rows//2 , cols//2
-    fshift[crow-30:crow+31, ccol-30:ccol+31] = 0
-    f_ishift = np.fft.ifftshift(fshift)
-    img_back = np.fft.ifft2(f_ishift)
-    img_back = np.real(img_back)
-    return img_back
-
-
-def MirrorY(frame, invert):
-    dims = frame.shape
-    height = dims[0]
-    width = dims[1]
-    flipped = cv2.flip(frame, 1)
-    if invert: 
-        frame[0:height, int(width/2):width] = flipped[0:height, int(width/2):width]
+    if pausing:
+        pause.config(text="Resume") 
     else:
-        frame[0:height, 0:int(width/2)] = flipped[0:height, 0:int(width/2)]
-    return frame 
-
-
-def MirrorX(frame, invert):
-    dims = frame.shape
-    height = dims[0]
-    width = dims[1]
-    flipped = cv2.flip(frame, 0)
-    if invert: 
-        frame[int(height/2):height, 0:width] = flipped[int(height/2):height, 0:width]
-    else:
-        frame[0:int(height/2), 0:width] = flipped[0:int(height/2), 0:width]
-    return frame 
-
-    
-
-
-
-def Rotate(image, index, invert):
-    image_center = tuple(np.array(image.shape[1::-1]) / 2)
-    angle = -index%360 if invert else index%360
-    rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-    result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
-    return result
+        pause.config(text="Pause")
 
 
 def getElement(event):
@@ -105,10 +63,11 @@ def getElement(event):
   filter = index
   print(index,' -> ',value)
 
+#list_ports()
 
 root = Tk()
 root.title("Webcamschwurbler")
-root.geometry("180x195")
+root.geometry("250x250")
 
 app = Frame(root)
 app.grid()
@@ -116,18 +75,24 @@ app.grid()
 stop = Button(app, text="Stop", command=stop)
 stop.grid(row=0, column=0)
 
-pause = Button(app, text="pause", command=pause, activebackground='orange')
+pause = Button(app, text="Pause", command=pause, activebackground='orange')
 pause.grid(row=0, column=1)
 
 var2 = StringVar()
-var2.set(('Kein Filter', 'Canny', 'Canny BG', 'Rotate', 'MirrorX', 'MirrorY'))
+var2.set(('Kein Filter', 'Canny', 'Canny BG', 'Rotate', 'MirrorX', 'MirrorY', 'InvertColors'))
 lb = Listbox(root, listvariable=var2)
 lb.grid(row=1, column=0, columnspan=2)
 lb.bind('<<ListboxSelect>>', getElement) #Select click
 
 invert = IntVar()
-cb_invert = Checkbutton(text='invert', variable=invert)
+mirrorImgX = IntVar()
+mirrorImgY = IntVar()
+cb_invert = Checkbutton(text='Invert Filter', variable=invert)
 cb_invert.grid(row=1, column=3)
+cb_mirrorImgX = Checkbutton(text='Mirror X', variable=mirrorImgX)
+cb_mirrorImgX.grid(row=2, column=3)
+cb_mirrorImgY = Checkbutton(text='Mirror Y', variable=mirrorImgY)
+cb_mirrorImgY.grid(row=3, column=3)
 
 vc = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
@@ -141,7 +106,7 @@ vc.set(cv2.CAP_PROP_FRAME_WIDTH, pref_width)
 vc.set(cv2.CAP_PROP_FRAME_HEIGHT, pref_height)
 vc.set(cv2.CAP_PROP_FPS, pref_fps)
 
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+face_cascade_handle = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 
 # Query final capture device values
@@ -166,17 +131,24 @@ with pyvirtualcam.Camera(width, height, fps, fmt=PixelFormat.BGR) as cam:
         if filter == 0:
             frame = frame
         elif filter == 1:
-            frame = CannyFull(frame)
+            frame = ip.CannyFull(frame)
         elif filter == 2:
-            frame = CannyBackground(frame, face_cascade, height, width)
+            frame = ip.CannyBackground(frame, face_cascade_handle, height, width)
         elif filter == 3:
-            frame = Rotate(frame, idx, invert.get())
+            frame = ip.Rotate(frame, idx, invert.get())
             frame = frame
         elif filter == 4:
-            frame = MirrorX(frame, invert.get())
+            frame = ip.MirrorMiddleX(frame, invert.get())
         elif filter == 5:
-            frame = MirrorY(frame, invert.get())
+            frame = ip.MirrorMiddleY(frame, invert.get())
+        elif filter == 6:
+            frame = ip.InvertColors(frame)
         
+        if mirrorImgX.get():
+            frame = ip.MirrorImageX(frame)
+        if mirrorImgY.get():
+            frame = ip.MirrorImageY(frame)
+
         cam.send(frame)
         idx += 1
         cam.sleep_until_next_frame()

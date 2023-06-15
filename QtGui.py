@@ -55,7 +55,7 @@ class Worker(QThread):
         fps = cap.get(cv2.CAP_PROP_FPS)
         
         face_cascade_handle = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        netzle = ort.InferenceSession("onnx/mosaic-9.onnx", providers=['CUDAExecutionProvider','CPUExecutionProvider'])
+        netzle = ort.InferenceSession("onnx/mosaic-9.onnx", providers=self.args["inferenceBackends"])
         first = True
         # Open virtual camera
         with pyvirtualcam.Camera(width=width, height=height, fps=fps, fmt=PixelFormat.BGR, device=self.args["device"]) as cam:
@@ -197,8 +197,9 @@ if __name__ == '__main__':
     parser.add_argument('--device', default=None, help="The loopback-device e.g. /dev/video4")
     parser.add_argument('--capture', default=0, help="OpenCV capture backend to use 0: Devault/Any, see: https://docs.opencv.org/3.4/d4/d15/group__videoio__flags__base.html#ga023786be1ee68a9105bf2e48c700294d for values")
     parser.add_argument('--camera', default=0, help="Camera ID to use")
+    parser.add_argument('--inferenceBackends', '--names-list', nargs='+', default=['CUDAExecutionProvider','CPUExecutionProvider'], help="Execution providers to use, call: --inferenceBackends CPUExecutionProvider CUDAEcecutionProvider")
     args = vars(parser.parse_args())
-    print(args)
+    print(args)   
     app = QtWidgets.QApplication(sys.argv)
     ex = MyWidget(args)
     ex.show()

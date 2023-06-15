@@ -6,12 +6,14 @@ import pyvirtualcam
 from pyvirtualcam import PixelFormat
 import imageProcessing as ip
 import onnxruntime as ort
+import argparse
 
 
 class Worker(QThread):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, args):
+        super().__init__()        
         print("Worker init")
+        self.args = args        
         self.filter = 0
         self.running = True
         self.pausing = False
@@ -38,8 +40,9 @@ class Worker(QThread):
 
 
     def run(self):
+        print(self.args)
         # Open webcam
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(self.args["camera"], self.args["capture"])
         pref_width = 1280
         pref_height = 720
         pref_fps = 30
@@ -52,22 +55,22 @@ class Worker(QThread):
         fps = cap.get(cv2.CAP_PROP_FPS)
         
         face_cascade_handle = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        netzle = ort.InferenceSession(r"Webcamschwurbler\onnx\mosaic-9.onnx", providers=['CPUExecutionProvider'])
-
+        netzle = ort.InferenceSession("onnx/mosaic-9.onnx", providers=['CUDAExecutionProvider','CPUExecutionProvider'])
+        first = True
         # Open virtual camera
-        with pyvirtualcam.Camera(width=width, height=height, fps=fps, fmt=PixelFormat.BGR) as cam:
+        with pyvirtualcam.Camera(width=width, height=height, fps=fps, fmt=PixelFormat.BGR, device=self.args["device"]) as cam:
             print(f'Using virtual camera: {cam.device}')
             while self.running:
                 #print('running')
-                if not self.pausing:
+                if True:#not self.pausing:
                     # Read frame from webcam
-                    print('Reading frame from webcam.')
+                    #print('Reading frame from webcam.')
                     ret, frame = cap.read()
                     if not ret:
                         print('Ignoring empty camera frame.')
                         continue
-                    else:
-                        print('Reading frame from webcam successful.')
+                    #else:
+                    #    print('Reading frame from webcam successful.')
                         
                     if self.filter == 0:
                         frame = frame
@@ -87,11 +90,14 @@ class Worker(QThread):
                         frame = ip.Spackern(frame, netzle=netzle)
                     else:
                         frame = frame
-                    print(f"Filterindex: { self.filter}")
+                    #print(f"Filterindex: { self.filter}")
 
                     # Send to virtual camera
+                    if(not first):
+                        cam.sleep_until_next_frame()
+                        first = False
                     cam.send(frame)
-                    cam.sleep_until_next_frame()
+
 
                     # Update loop index
                     self.idx = self.idx + 1
@@ -102,15 +108,16 @@ class Worker(QThread):
 
 
 class MyWidget(QtWidgets.QWidget):
-    def __init__(self):
+    def __init__(self, args):
         super().__init__()
         # Create a layout
         self.layout = QtWidgets.QVBoxLayout(self)
         #create camera thread
-        self.worker = Worker()
+        self.worker = Worker(args)
         self.workerThread = QtCore.QThread()
+        
         self.worker.moveToThread(self.workerThread)
-        #self.workerThread.started.connect(self.worker.run)
+        self.workerThread.started.connect(self.worker.run)
         
         # Create a label
         self.label = QtWidgets.QLabel("Webcamschwurbler")
@@ -186,12 +193,13 @@ def cameraLoop():
     print()
 
 if __name__ == '__main__':
-    
-    vc = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-
-    if not vc.isOpened():
-        raise RuntimeError('Could not open video source')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--device', default=None, help="The loopback-device e.g. /dev/video4")
+    parser.add_argument('--capture', default=0, help="OpenCV capture backend to use 0: Devault/Any, see: https://docs.opencv.org/3.4/d4/d15/group__videoio__flags__base.html#ga023786be1ee68a9105bf2e48c700294d for values")
+    parser.add_argument('--camera', default=0, help="Camera ID to use")
+    args = vars(parser.parse_args())
+    print(args)
     app = QtWidgets.QApplication(sys.argv)
-    ex = MyWidget()
+    ex = MyWidget(args)
     ex.show()
     sys.exit(app.exec())   

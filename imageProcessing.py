@@ -66,6 +66,7 @@ def MirrorMiddleX(frame, invert):
 
 def Rotate(image, index, invert):
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
+    index = index*10
     angle = -index%360 if invert else index%360
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
@@ -97,14 +98,16 @@ def Spackern(image, netzle):
     
     offi = (shp2-shp)//2
     image_cut = image[0:shp, offi:offi+shp,:].astype(np.float32)
+    image_cut = cv2.GaussianBlur(image_cut, (0,0), sigmaX=3)
     image_cut = cv2.resize(image_cut, (224,224))    
-    
+    image_cut = cv2.cvtColor(image_cut, cv2.COLOR_BGR2RGB)    
     image_cut = np.swapaxes(image_cut, 0, 2)
     asbest = np.expand_dims(image_cut,axis=0)
     
     ret = netzle.run(None, {'input1': asbest})
     imgg = ret[0][0]
     imgg = np.swapaxes(imgg, 0, 2) 
+    imgg = cv2.cvtColor(imgg, cv2.COLOR_RGB2BGR)    
     imgg = cv2.resize(imgg, (shp,shp))
     imgg = imgg.astype(np.uint8)
 

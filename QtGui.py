@@ -27,8 +27,12 @@ class Worker(QThread):
 
     
     def setRunning(self):
-        print(f"Running: {self.running}")
-        self.running = not self.running
+        self.pausing = False
+        self.running = True
+        
+    def setStopping(self):        
+        self.running = False
+        
 
 
     def setPausing(self):
@@ -44,9 +48,10 @@ class Worker(QThread):
 
 
     def run(self):
-        print(self.args)
+      
         # Open webcam
         cap = cv2.VideoCapture(self.args["camera"], int(self.args["capture"]))
+
         pref_width = 1280
         pref_height = 720
         pref_fps = 30
@@ -66,7 +71,9 @@ class Worker(QThread):
             print(f'Using virtual camera: {cam.device}')
             while self.running:
                 #print('running')
-                if True:#not self.pausing:
+                if self.pausing:
+                    self.msleep(20)
+                else:
                     # Read frame from webcam
                     #print('Reading frame from webcam.')
                     ret, frame = cap.read()
@@ -110,25 +117,22 @@ class Worker(QThread):
             cap.release()
 
 
-
 class MyWidget(QtWidgets.QWidget):
     def __init__(self, args):
         super().__init__()
+        self.args = args
         # Create a layout
         self.layout = QtWidgets.QVBoxLayout(self)
-        #create camera thread
-        self.worker = Worker(args)
-        self.workerThread = QtCore.QThread()
         
-        self.worker.moveToThread(self.workerThread)
-        self.workerThread.started.connect(self.worker.run)
+        self.worker = Worker(self.args)
+       
         
         # Create a label
         self.label = QtWidgets.QLabel("Webcamschwurbler")
         self.layout.addWidget(self.label)
         # Create a start button
         self.startButton = QtWidgets.QPushButton("Start")
-        self.startButton.clicked.connect(self.worker.run)
+        self.startButton.clicked.connect(self.startWorker)
         #self.startButton.clicked.connect(self.startClicked)
         self.layout.addWidget(self.startButton)
         # Create a Stop button
@@ -159,8 +163,13 @@ class MyWidget(QtWidgets.QWidget):
         self.layout.addWidget(self.cbx_invert)
         self.layout.addWidget(self.sl_rotSpeed)
         self.speedChanged()
-        #start thread
-        self.workerThread.start()
+        
+        self.startWorker()
+        
+        
+    def startWorker(self):
+        self.worker.setRunning()
+        self.worker.start()
 
     def invertClicked(self):
         print("invert clicked")
@@ -175,16 +184,17 @@ class MyWidget(QtWidgets.QWidget):
     
     def stopClicked(self):
         print("stop clicked")
-        self.worker.setRunning()
+        self.worker.setStopping()
+        
 
     def listboxClicked(self):
         print("listbox clicked")
         self.worker.setFilter(self.lbx_filter.currentRow())
 
     def closeEvent(self, event):
-        self.worker.setRunning()
-        self.workerThread.quit()
-        self.workerThread.wait()
+        self.worker.setStopping()
+        self.worker.quit()
+        self.worker.wait()
         event.accept()
 
     

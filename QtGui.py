@@ -19,6 +19,7 @@ class Worker(QThread):
         self.pausing = False
         self.invert = False
         self.idx = 0
+        self.speed = 0
 
     def setFilter(self, filter):
         print(f"Filter: {self.filter}")
@@ -37,6 +38,9 @@ class Worker(QThread):
     def setInvert(self, invert):
         print(f"Invert: {invert}")
         self.invert = invert
+        
+    def setSpeed(self, speed):        
+        self.speed = speed
 
 
     def run(self):
@@ -79,7 +83,7 @@ class Worker(QThread):
                     elif self.filter == 2:
                         frame = ip.CannyBackground(frame, face_cascade_handle, height, width)
                     elif self.filter == 3:
-                        frame = ip.Rotate(frame, self.idx, self.invert)
+                        frame = ip.Rotate(frame, self.idx, self.invert, self.speed)
                     elif self.filter == 4:
                         frame = ip.MirrorMiddleX(frame, self.invert)
                     elif self.filter == 5:
@@ -148,14 +152,22 @@ class MyWidget(QtWidgets.QWidget):
         # Create a checkbox
         self.cbx_invert = QtWidgets.QCheckBox("Invert")
         self.cbx_invert.stateChanged.connect(self.invertClicked)
+        self.sl_rotSpeed = QtWidgets.QSlider(orientation=QtCore.Qt.Horizontal)
+        self.sl_rotSpeed.setMinimum(1)
+        self.sl_rotSpeed.setMaximum(1000)
+        self.sl_rotSpeed.valueChanged.connect(self.speedChanged)        
         self.layout.addWidget(self.cbx_invert)
-
+        self.layout.addWidget(self.sl_rotSpeed)
+        self.speedChanged()
         #start thread
         self.workerThread.start()
 
     def invertClicked(self):
         print("invert clicked")
         self.worker.setInvert(self.cbx_invert.isChecked())
+        
+    def speedChanged(self):        
+        self.worker.setSpeed(self.sl_rotSpeed.value()*0.04)
 
     def pauseClicked(self):
         print("pause clicked")

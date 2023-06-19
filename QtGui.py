@@ -50,9 +50,8 @@ class Worker(QThread):
     def run(self):
       
         # Open webcam
-        cap = cv2.VideoCapture()
-        cap.open(self.args["camera"], self.args["capture"])
-    
+        cap = cv2.VideoCapture(self.args["camera"], int(self.args["capture"]))
+
         pref_width = 1280
         pref_height = 720
         pref_fps = 30
@@ -215,10 +214,10 @@ def camSetup(videoCapture):
 def cameraLoop():
     print()
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', default=None, help="The loopback-device e.g. /dev/video4")
-    parser.add_argument('--capture', default=0, help="OpenCV capture backend to use 0: Devault/Any, see: https://docs.opencv.org/3.4/d4/d15/group__videoio__flags__base.html#ga023786be1ee68a9105bf2e48c700294d for values")
+    parser.add_argument('--capture', default=0, help="OpenCV capture backend to use 0: Devault/Any, 700: DShow, see: https://docs.opencv.org/3.4/d4/d15/group__videoio__flags__base.html#ga023786be1ee68a9105bf2e48c700294d for values")
     parser.add_argument('--camera', default=0, help="Camera ID to use")
     parser.add_argument('--inferenceBackends', '--names-list', nargs='+', default=['CUDAExecutionProvider','CPUExecutionProvider'], help="Execution providers to use, call: --inferenceBackends CPUExecutionProvider CUDAEcecutionProvider")
     args = vars(parser.parse_args())

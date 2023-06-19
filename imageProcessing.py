@@ -64,10 +64,10 @@ def MirrorMiddleX(frame, invert):
     return frame 
 
 
-def Rotate(image, index, invert):
+def Rotate(image, index, invert, speed):
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
-    index = index*10
-    angle = -index%360 if invert else index%360
+    index = index*speed
+    angle = -index%360.0 if invert else index%360.0
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
     return result

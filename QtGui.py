@@ -10,7 +10,7 @@ import argparse
 
 
 class Worker(QThread):
-    def __init__(self, args):
+    def __init__(self, args, labbl):
         super().__init__()        
         print("Worker init")
         self.args = args        
@@ -20,6 +20,7 @@ class Worker(QThread):
         self.invert = False
         self.idx = 0
         self.speed = 0
+        self.imageLabel = labbl
 
     def setFilter(self, filter):
         print(f"Filter: {self.filter}")
@@ -108,8 +109,14 @@ class Worker(QThread):
                         cam.sleep_until_next_frame()
                         first = False
                     cam.send(frame)
-
-
+                    
+                    
+                    h, w = frame.shape[:2]
+                    bytesPerLine = 3 * w
+                    qimage = QtGui.QImage(frame.data, w, h, bytesPerLine, QtGui.QImage.Format.Format_BGR888) 
+                    q_pixmap = QtGui.QPixmap.fromImage(qimage)
+                    self.imageLabel.setPixmap(q_pixmap)
+                        
                     # Update loop index
                     self.idx = self.idx + 1
 
@@ -123,8 +130,8 @@ class MyWidget(QtWidgets.QWidget):
         self.args = args
         # Create a layout
         self.layout = QtWidgets.QVBoxLayout(self)
-        
-        self.worker = Worker(self.args)
+        self.imageLabel = QtWidgets.QLabel()
+        self.worker = Worker(self.args, self.imageLabel)
        
         
         # Create a label
@@ -162,6 +169,11 @@ class MyWidget(QtWidgets.QWidget):
         self.sl_rotSpeed.valueChanged.connect(self.speedChanged)        
         self.layout.addWidget(self.cbx_invert)
         self.layout.addWidget(self.sl_rotSpeed)
+        
+        
+        self.imageLabel.setBackgroundRole(QtGui.QPalette.Base)        
+        self.layout.addWidget(self.imageLabel)
+        
         self.speedChanged()
         
         self.startWorker()

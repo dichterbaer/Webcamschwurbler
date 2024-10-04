@@ -7,6 +7,7 @@ from pyvirtualcam import PixelFormat
 import imageProcessing as ip
 import onnxruntime as ort
 import argparse
+import numpy as np
 
 
 class Worker(QThread):
@@ -20,7 +21,9 @@ class Worker(QThread):
         self.invert = False
         self.idx = 0
         self.speed = 0
+        self.speed2 = 0
         self.imageLabel = labbl
+        self.sensitivity = 0
 
     def setFilter(self, filter):
         print(f"Filter: {self.filter}")
@@ -46,6 +49,20 @@ class Worker(QThread):
         
     def setSpeed(self, speed):        
         self.speed = speed
+
+    def setSpeed2(self, speed2):
+        self.speed2 = speed2
+
+    def calcPhase(self, idx, invert):
+        idx = idx*self.speed / 100
+        return -idx%(2*np.pi) if invert else idx%(2*np.pi)
+    
+    def calcRotationAngle(self, idx, invert):
+        idx = idx*self.speed2
+        return -idx%360.0 if invert else idx%360.0
+    
+    def setSensitivity(self, sensitivity):
+        self.sensitivity = sensitivity
 
 
     def run(self):
@@ -100,6 +117,10 @@ class Worker(QThread):
                         frame = ip.InvertColors(frame)
                     elif self.filter == 7:
                         frame = ip.Spackern(frame, netzle=netzle)
+                    elif self.filter == 8:
+                        phase = self.calcPhase(self.idx, self.invert)
+                        rotationAngle = self.calcRotationAngle(self.idx, self.invert)
+                        frame = ip.CannyRainbowPuke(frame, phase, 1, rotationAngle, self.sensitivity)
                     else:
                         frame = frame
                     #print(f"Filterindex: { self.filter}")
@@ -154,7 +175,7 @@ class MyWidget(QtWidgets.QWidget):
         self.layout.addWidget(self.bt_pause)
         # Create a listbox
         self.lbx_filter = QtWidgets.QListWidget()
-        self.lbx_filter.addItems(['Kein Filter', 'Canny', 'Canny BG', 'Rotate', 'MirrorX', 'MirrorY', 'InvertColors', 'Mosaic'])
+        self.lbx_filter.addItems(['Kein Filter', 'Canny', 'Canny BG', 'Rotate', 'MirrorX', 'MirrorY', 'InvertColors', 'Mosaic', 'RainbowPuke'])
         #connect listbox to worker. setFilter function 
         self.lbx_filter.itemClicked.connect(self.listboxClicked)
 
@@ -164,16 +185,33 @@ class MyWidget(QtWidgets.QWidget):
         self.cbx_invert = QtWidgets.QCheckBox("Invert")
         self.cbx_invert.stateChanged.connect(self.invertClicked)
         self.sl_rotSpeed = QtWidgets.QSlider(orientation=QtCore.Qt.Horizontal)
-        self.sl_rotSpeed.setMinimum(1)
+        self.sl_rotSpeed.setMinimum(0)
         self.sl_rotSpeed.setMaximum(1000)
-        self.sl_rotSpeed.valueChanged.connect(self.speedChanged)        
+        self.sl_rotSpeed.valueChanged.connect(self.rotSpeedChanged)        
         self.layout.addWidget(self.cbx_invert)
         self.layout.addWidget(self.sl_rotSpeed)
+
+        # add another speed slider
+        self.sl_speed = QtWidgets.QSlider(orientation=QtCore.Qt.Horizontal)
+        self.sl_speed.setMinimum(0)
+        self.sl_speed.setMaximum(1000)
+        self.layout.addWidget(self.sl_speed)
+        self.sl_speed.valueChanged.connect(self.speedChanged) 
+
+        # add sensitivity slider
+        self.sl_sensitivity = QtWidgets.QSlider(orientation=QtCore.Qt.Horizontal)
+        self.sl_sensitivity.setMinimum(0)
+        self.sl_sensitivity.setMaximum(100)
+        self.layout.addWidget(self.sl_sensitivity)
+        self.sl_sensitivity.valueChanged.connect(self.sensitivityChanged)
+
+
         
         
         self.imageLabel.setBackgroundRole(QtGui.QPalette.Base)        
         self.layout.addWidget(self.imageLabel)
         
+        self.rotSpeedChanged()
         self.speedChanged()
         
         self.startWorker()
@@ -187,8 +225,14 @@ class MyWidget(QtWidgets.QWidget):
         print("invert clicked")
         self.worker.setInvert(self.cbx_invert.isChecked())
         
-    def speedChanged(self):        
+    def rotSpeedChanged(self):        
         self.worker.setSpeed(self.sl_rotSpeed.value()*0.04)
+
+    def speedChanged(self):        
+        self.worker.setSpeed2(self.sl_speed.value()*0.04)
+
+    def sensitivityChanged(self):
+        self.worker.setSensitivity(self.sl_sensitivity.value())
 
     def pauseClicked(self):
         print("pause clicked")
@@ -229,7 +273,7 @@ def cameraLoop():
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', default=None, help="The loopback-device e.g. /dev/video4")
-    parser.add_argument('--capture', default=0, help="OpenCV capture backend to use 0: Devault/Any, 700: DShow, see: https://docs.opencv.org/3.4/d4/d15/group__videoio__flags__base.html#ga023786be1ee68a9105bf2e48c700294d for values")
+    parser.add_argument('--capture', default=700, help="OpenCV capture backend to use 0: Devault/Any, 700: DShow, see: https://docs.opencv.org/3.4/d4/d15/group__videoio__flags__base.html#ga023786be1ee68a9105bf2e48c700294d for values")
     parser.add_argument('--camera', default=0, help="Camera ID to use")
     parser.add_argument('--inferenceBackends', '--names-list', nargs='+', default=['CUDAExecutionProvider','CPUExecutionProvider'], help="Execution providers to use, call: --inferenceBackends CPUExecutionProvider CUDAEcecutionProvider")
     args = vars(parser.parse_args())

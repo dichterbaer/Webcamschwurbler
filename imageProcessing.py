@@ -1,6 +1,35 @@
 import cv2
 import numpy as np
 
+def CannyRainbowPuke(frame, phaseshift = np.pi/4, frequency = 1, rotation_angle = 0, sensitivity = 50):
+    sensitivity = 1 - (sensitivity / 100)
+    tr2 = 255 * sensitivity
+    tr1 = tr2 * 0.4
+    canny = cv2.Canny(frame, tr1, tr2)
+    width = frame.shape[1]
+    height = frame.shape[0]
+    size = np.min([width, height])
+    x = np.linspace(0, frequency * np.pi, size)
+    y = np.linspace(0, frequency * np.pi, size)
+    # scale the x and y values to the size of the image
+    theta = np.radians(rotation_angle)
+    X, Y = np.meshgrid(x, y)
+    X = X * np.cos(theta) - Y * np.sin(theta)
+    Y = X * np.sin(theta) + Y * np.cos(theta)
+    distance = np.sqrt(X**2 + Y**2)
+    gray_values = (np.sin(distance + phaseshift) + 1) / 2  # Add the offset to the sine wave
+    gray_values = gray_values * 255 
+    gray_image = gray_values.astype(np.uint8)
+    # scale the gray image to the size of the canny image
+    gray_image = cv2.resize(gray_image, (width, height))
+    rainbow_image = cv2.applyColorMap(gray_image, cv2.COLORMAP_RAINBOW)
+    # Combine the canny image with the rainbow image
+    canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2RGB)
+    canny = np.where(canny > 0, rainbow_image, canny)
+
+    return canny
+
+
 def CannyFull(frame):
     canny = cv2.Canny(frame, 100, 200)
     canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2RGB)
